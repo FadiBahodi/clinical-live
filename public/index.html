@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinical Live</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+ <header class="topbar">
+  <a class="brand" href="/" aria-label="Clinical Live"><span class="brand-mark" aria-hidden="true">✳</span> Clinical <b>Live</b></a>
+  <div class="listening-controls"><button id="listen" class="primary"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span>Start listening</span></button><span id="mic-state" class="mic-state"><i></i><span>Mic off</span></span><span class="level" aria-hidden="true"><i id="level"></i></span><span id="queue-count" class="queue-count" hidden></span><time id="elapsed" hidden>00:00</time></div>
+  <nav aria-label="Workspace controls"><button id="transcript-toggle" aria-expanded="false">Transcript <span id="speech-count" class="count">0</span></button><button id="display-toggle" aria-expanded="false">Aa <span class="optional-label">Display</span></button><button id="new">New</button><button id="setup-toggle" aria-label="Voice and models">Voice & models</button></nav>
+ </header>
+ <section class="display-panel toolbar-panel" id="display-panel" hidden aria-label="Display settings">
+  <div class="presets"><button data-preset="compact">Compact</button><button data-preset="dense">Dense</button><button data-preset="comfortable">Larger</button></div>
+  <label>Text <input id="font" type="range" min="10" max="19" step="0.5" value="13.5"><output id="font-value">13.5</output></label>
+  <label>Line height <input id="leading" type="range" min="1.05" max="1.7" step="0.01" value="1.3"><output id="leading-value">1.3</output></label>
+  <label>Row gap <input id="spacing" type="range" min="0" max="10" step="0.5" value="3"><output id="spacing-value">3</output></label>
+  <label>Column gap <input id="columns" type="range" min="4" max="28" step="1" value="12"><output id="columns-value">12</output></label>
+  <label><input id="ddx-detail" type="checkbox"> DDx cues</label><label><input id="inline-labels" type="checkbox" checked> Inline labels</label><label><input id="rules" type="checkbox" checked> Dividers</label><label><input id="timer" type="checkbox"> Elapsed time</label><label>Colour <select id="colour"><option value="clinical">Clinical</option><option value="quiet">Quiet</option></select></label>
+ </section>
+ <dialog id="setup-panel" class="setup-dialog" aria-labelledby="setup-title">
+  <header class="setup-header"><div><h2 id="setup-title">Voice & models</h2><p id="connection-status">Checking connection…</p></div><button id="setup-close" aria-label="Close settings">×</button></header>
+  <div class="setup-body">
+   <section><h3>Listen</h3><div class="setup-grid"><label>Microphone<select id="audio-device"><option value="">System default</option></select></label><label>Input mode<select id="audio-mode"><option value="room">Room / nearby speakers</option><option value="direct">Direct microphone</option></select></label><label>Phrase pause<select id="audio-pause"><option value="300">300 ms · quick</option><option value="450">450 ms · balanced</option><option value="800">800 ms · deliberate</option><option value="1200">1.2 s · long pauses</option></select></label></div><div class="setup-actions"><button id="refresh-devices">Refresh devices</button><button id="test-mic">Test microphone</button><span id="mic-test-status">The microphone test stays on this device.</span></div><p class="setup-note">Room mode avoids filtering voices from nearby speakers; it uses the microphone, not direct system-audio capture. Direct mode enables echo cancellation and noise reduction. Pause listening before changing input settings.</p></section>
+   <section><h3>Connections</h3><p class="setup-note">Connect once and start listening; the Gemini models are already configured. Keys are temporary by default. Remembering a key saves it unencrypted in this browser on this device. Use this only on a device you trust. Keys are never included in the source download.</p><div class="connection-row"><label for="key-provider" class="sr-only">Key provider</label><select id="key-provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select><label for="provider-key" class="sr-only">API key</label><input id="provider-key" type="password" autocomplete="off" placeholder="Paste an API key"><button id="connect-key">Connect</button><button id="remove-key">Forget / disconnect</button></div><label class="remember-choice"><input id="remember-key" type="checkbox"> Remember key on this device</label><span id="saved-key-status" class="setup-note"></span><p id="key-status" class="setup-note"></p></section>
+   <section><div class="setup-section-title"><h3>Models</h3><button id="load-models">Refresh available models</button></div><p class="setup-note">Ready-made Gemini setup: 2.5 Flash hears speech; 3.8 Flash updates assessment, management and answers in parallel. No model typing needed. Override any role below; available IDs load from your account.</p><button id="gemini-preset">Use Gemini defaults</button><form id="models-form"><div id="model-roles"></div><label class="workspace-choice">Clinical focus<select id="clinical-profile"><option value="ed">Emergency department</option><option value="resus">Resuscitation</option><option value="acute">Acute medicine</option></select></label><label class="workspace-choice">Gemini 3 thinking<select id="gemini-thinking"><option value="low">Low · faster updates</option><option value="medium">Medium</option><option value="high">High · more deliberation</option><option value="default">Provider default</option></select></label><button class="primary" id="apply-models">Apply choices</button><span id="model-save-status" role="status"></span></form></section>
+   <section><h3>Run or share</h3><p class="setup-note">Download → <code>npm ci</code> → <code>npm start</code>. Add keys here or through the server environment. The source includes hosting instructions and a container recipe.</p><a class="download" href="/download/clinical-live.zip" download>↓ Download source</a><a class="guide-link" href="/guide.html" target="_blank" rel="noopener">Setup & capabilities ↗</a><p id="processing-info" class="setup-note"></p></section>
+  </div>
+ </dialog>
+ <main>
+  <div class="casebar"><div class="case-name"><span id="mode" class="mode">SAMPLE</span><span id="summary"></span></div><div class="case-actions"><button id="next">Next update →</button><button id="sample">Sample case</button></div></div>
+  <div class="observations" id="vitals" aria-label="Reported observations"></div>
+  <div id="notice" class="notice" role="status" hidden></div>
+  <div id="empty-start" class="empty-start" hidden><span class="empty-mic" aria-hidden="true">◉</span><h1>Start listening.</h1><p>Discuss the case. Ask a question. The clinical view updates as you speak.</p><button id="empty-listen" class="primary">Start listening</button><button id="empty-sample">Explore the sample</button></div>
+  <div class="clinical-board" id="board">
+   <section class="section management" aria-labelledby="management-heading"><header class="section-head"><h2 id="management-heading">Management</h2><span class="lane-state" data-lane="plan"></span></header><div id="management" class="cue-list"></div></section>
+   <div class="assessment-column">
+    <section class="section differential" aria-labelledby="differential-heading"><header class="section-head"><h2 id="differential-heading">DDx</h2><span class="lane-state" data-lane="assessment"></span></header><ol id="differential" class="ddx-list"></ol></section>
+    <section class="section history" aria-labelledby="history-heading"><header class="section-head"><h2 id="history-heading">History</h2><span class="section-count" id="history-count"></span></header><div id="history" class="cue-list"></div></section>
+   </div>
+   <div class="examination-column">
+    <section class="section examination" aria-labelledby="exam-heading"><header class="section-head"><h2 id="exam-heading">Physical</h2><span class="section-count" id="exam-count"></span></header><div id="exam" class="cue-list"></div></section>
+    <section class="section answer" aria-labelledby="answer-heading"><header class="section-head"><h2 id="answer-heading">Answer</h2><span class="lane-state" data-lane="answer"></span></header><div id="answer"></div></section>
+   </div>
+  </div>
+  <div class="board-footer"><div class="legend"><span>Unmarked · suggested</span><span><i class="cue-symbol reported">●</i> Reported</span><span><i class="cue-symbol requested">↗</i> Requested</span><span><i class="cue-symbol done">✓</i> Done / result</span></div><span id="latency"></span><button id="retry" hidden>Retry update</button><span class="output-label" id="output-label">Synthetic sample · no audio captured</span></div>
+  <section class="transcript-panel" id="transcript-panel" hidden aria-label="Transcript">
+   <header><h2>Transcript</h2><span class="muted-label">Latest speech appears here.</span><button id="transcript-close" aria-label="Close transcript">×</button></header>
+   <div id="transcript" class="transcript-lines"></div>
+   <details><summary>Test or correct the transcript with text</summary><form id="text-form"><label class="sr-only" for="text-input">Transcript text</label><textarea id="text-input" rows="2" placeholder="Paste spoken words or dictate a correction…"></textarea><button class="primary" type="submit">Use transcript</button></form></details>
+  </section>
+  <div class="heard-line" id="heard-line"><span class="heard-label">HEARD</span><span id="last-heard"></span></div>
+ </main>
+ <script type="module" src="/app.js"></script>
+</body></html>

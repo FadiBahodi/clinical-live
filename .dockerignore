@@ -1,0 +1,11 @@
+.git
+node_modules
+.env
+.env.*
+dist
+output
+recordings
+sessions
+*.log
+public/qa
+.DS_Store

@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+recordings/
+sessions/
+.DS_Store
+coverage/
+dist/
+public/qa/

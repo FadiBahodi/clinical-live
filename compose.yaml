@@ -1,0 +1,9 @@
+services:
+  clinical-live:
+    build: .
+    ports:
+      - "127.0.0.1:8840:8840"
+    environment:
+      PUBLIC_ORIGIN: "http://127.0.0.1:8840"
+      ACCESS_PASSWORD: "${ACCESS_PASSWORD:?Set an access code of at least 16 characters}"
+    restart: unless-stopped
