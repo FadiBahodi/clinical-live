@@ -4,7 +4,7 @@ Speak through a clinical case. Keep the differential, relevant history and physi
 
 Clinical Live is a standalone, voice-first clinical working sheet. It listens, transcribes and updates the visuals. It does not speak back. The compact layout is adjustable; content stays in familiar clinical groups while corrections replace the affected items.
 
-[Download v0.4.0](https://github.com/FadiBahodi/clinical-live/releases/tag/v0.4.0) · [Release verification](docs/release.md)
+[Download v0.4.1](https://github.com/FadiBahodi/clinical-live/releases/tag/v0.4.1) · [Release verification](docs/release.md)
 
 ## Start
 

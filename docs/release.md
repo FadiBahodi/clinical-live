@@ -1,3 +1,7 @@
+# 0.4.1 documentation correction
+
+The in-app setup guide now describes the continuous stream, draft/final states, clip fallback and WebSocket hosting requirements. Runtime behavior is unchanged from 0.4.0.
+
 # 0.4.0 continuous-speech update
 
 Reviewed 2026-09-23.

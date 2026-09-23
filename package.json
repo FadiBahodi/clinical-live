@@ -1,6 +1,6 @@
 {
   "name": "clinical-live-workspace",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "A voice-driven clinical workspace with live differential, assessment and management views",
   "type": "module",
