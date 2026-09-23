@@ -43,3 +43,7 @@ This is a small private-workspace deployment, not a public multi-tenant service.
 ## What has actually been exercised
 
 HTTP tests cover the access gate, cookies, origin rejection, private per-browser settings and credential non-disclosure. A clean ZIP install is tested separately from the developer folder. Container/runtime hosting requires Docker and a chosen hosting account; see the release notes for the exact checks performed for this version.
+
+## Continuous audio transport
+
+The reverse proxy must forward WebSocket upgrades on `/api/listen` and allow long-lived connections. Use the same HTTPS origin as the app; cross-origin or unauthenticated upgrades are rejected. One stream is allowed per browser session. The server connects outbound to the Google Gemini Live WebSocket endpoint. Provider keys remain server-side. Persistent connections require a long-running Node host; static hosting and request-only serverless functions are insufficient.

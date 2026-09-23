@@ -20,3 +20,7 @@ body[data-colour=quiet]{--violet:#35465b;--blue:#35465b;--red:#833c40}body[data-
 
 /* Category accents locate content; flags and state symbols communicate meaning. */
 .vital.flagged b{color:var(--red)}.vital-flag{font-size:11px;margin-left:3px}.vital.flagged{background:#fbecee;border-radius:3px;padding:1px 4px}.vital.changed{box-shadow:inset 0 -2px #c18d2b}.tag-RESUS{color:#99532c}.tag-PROC{color:#86603d}.tag-MON,.tag-COMM{color:#32695e}.group-RESUS{border-left:2px solid #d7b79e;padding-left:5px}.group-MED{border-left:2px solid #d2c6e5;padding-left:5px}.group-LABS,.group-IMG{border-left:2px solid #bdd0e2;padding-left:5px}.group-MON{border-left:2px solid #b7d0c5;padding-left:5px}.history .section-head,.examination .section-head{border-top-color:#53796b}.remember-choice{display:inline-flex;align-items:center;gap:6px;margin:10px 12px 4px 0;font-size:12px}#models-form{margin-top:12px}body[data-colour=quiet] .cue-group{border-left-color:#dce1e8}
+
+.speed-details{position:relative}.speed-details summary{cursor:pointer;color:#45627d}.speed-details[open]{flex-basis:100%;background:white;border:1px solid var(--border);padding:8px;font-size:11px;line-height:1.6}.speed-details p{color:var(--muted);margin:6px 0 0;max-width:900px}.lane-state{font-variant-numeric:tabular-nums}.lane-state.busy{color:#805d20}
+
+.speech-line.provisional{border-left:2px solid #a87922;background:#fcf8ef}.lane-state[data-draft="true"]{color:#8a6428}.heard-label{flex-shrink:0}

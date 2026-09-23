@@ -1,6 +1,6 @@
 {
   "name": "clinical-live-workspace",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "description": "A voice-driven clinical workspace with live differential, assessment and management views",
   "type": "module",
@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@ricky0123/vad-web": "0.0.31",
-    "onnxruntime-web": "1.22.0"
+    "onnxruntime-web": "1.22.0",
+    "ws": "8.21.3"
   },
   "files": [
     "public/",

@@ -1,3 +1,16 @@
+# 0.4.0 continuous-speech update
+
+Reviewed 2026-09-23.
+
+- Adds an authenticated streaming microphone path with 100 ms PCM delivery, live draft recognition, finalized source revisions, connection renewal and explicit disconnect handling. Gemini defaults are preconfigured; existing saved choices remain intact.
+- Adds incremental clinical updates, independent bounded scheduling, final-recognition priority, initial-section starvation prevention, stable item placement, and timing/freshness indicators.
+- Retains the explicit phrase-clip alternative with parallel transcription and ordered commits. The local microphone test sends no provider audio.
+- A clean extracted archive passed dependency installation, all 60 tests and startup with no credentials. Its default speech transport was continuous Gemini streaming.
+- 60 automated tests pass. Dependency audit reports no known vulnerabilities in the installed tree. Tests cover stream authentication, PCM continuity, renewal during speech and silence, pause/clear/disconnect, provisional-source revisions, corrections, stable rendering data, provider contracts and credential storage/session isolation.
+- Real Gemini streaming was exercised through the browser AudioWorklet and the actual application. The synthetic BP correction reached the observations and dependent management; the latest question produced one on-screen answer.
+- Forced real-provider renewal during ongoing synthetic speech preserved both transcript portions and the correction. Full-duration sessions, overlapping speakers and actual room acoustics remain unvalidated.
+- Detailed measured timings, including the slower answer comparison and the remaining first-assessment bottleneck, are in [latency.md](latency.md). These measurements are synthetic, account-specific observations, not clinical validation or a performance guarantee.
+
 # 0.3.1 update
 
 - Adds high/low observation arrows with contextual reasons, restrained category accents, and calmer resuscitation text. Removes the sample medicine’s repeated allergy check; preserves the unknown History cue.

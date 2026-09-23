@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { validateLane, validateSegments, instructionsFor } from './lib/contract.mjs';
 import { builtInAdapter, listModels } from './lib/providers.mjs';
 import {connectionStatus, validateSettings, PROVIDERS, defaults} from './lib/settings.mjs';
+import {attachLiveAudio} from './lib/live-audio.mjs';
 import {createAccess} from './lib/access.mjs';
 
 const project = fileURLToPath(new URL('./', import.meta.url));
@@ -44,9 +45,9 @@ async function readJson(req) {
   for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Error('Request too large');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString());
 }
-export function createServer(adapter=callAdapter,{env=process.env,fetcher=fetch}={}) {
+export function createServer(adapter=callAdapter,{env=process.env,fetcher=fetch,liveAudio}={}) {
  const access=createAccess(env);
- return http.createServer(async(req,res)=>{
+ const server=http.createServer(async(req,res)=>{
   const send=(status,value)=>{if(res.destroyed)return;res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
   const host=req.headers.host||'';
   if(!access.accepts(req))return send(403,{error:'Host or origin rejected'});
@@ -76,7 +77,7 @@ export function createServer(adapter=callAdapter,{env=process.env,fetcher=fetch}
     session.keys[body.provider]=body.key;
     if(body.key){
      const selected=defaults({ANALYSIS_PROVIDER:body.provider,TRANSCRIPTION_PROVIDER:body.provider});
-     for(const role of ['assessment','plan','answer','transcription'])if(!session.keys[session.settings[role].provider])session.settings[role]=selected[role];
+     for(const role of ['assessment','plan','answer','transcription'])if(!session.keys[session.settings[role].provider]){session.settings[role]=selected[role];if(role==='transcription')session.settings.speechTransport=selected.speechTransport;}
     }
     return send(200,status());
    }catch{return send(400,{error:'Connection could not be verified. Check the key, account access and network.'});}
@@ -96,6 +97,8 @@ export function createServer(adapter=callAdapter,{env=process.env,fetcher=fetch}
     }else{
      validateSegments(body.segments);
      if(!['assessment','plan','answer'].includes(body.lane))throw new Error('Invalid lane');
+     if(body.newUtteranceIds!==undefined&&(!Array.isArray(body.newUtteranceIds)||body.newUtteranceIds.some(id=>!body.segments.some(s=>s.id===id))))throw new Error('Invalid revision');
+     if(body.provisionalIds!==undefined&&(!Array.isArray(body.provisionalIds)||body.provisionalIds.some(id=>!body.segments.some(s=>s.id===id))))throw new Error('Invalid provisional source');
      if(body.previous)validateLane(body.previous,body.lane,body.segments);
     }
    }catch{return send(400,{error:'Input could not be processed. Check the transcript or audio format and encounter length.'});}
@@ -106,7 +109,7 @@ export function createServer(adapter=callAdapter,{env=process.env,fetcher=fetch}
      if(typeof result.text!=='string'||result.text.length>30000)throw new Error('Invalid transcription');
      return send(200,{text:result.text,elapsedMs:Math.round(performance.now()-started)});
     }
-    const result=await adapter({version:3,task:'analyze',lane:body.lane,instructions:instructionsFor(body.lane,session.settings.profile),segments:body.segments,previous:body.previous||null},{signal:controller.signal,settings:structuredClone(session.settings),keys:{...session.keys}});
+    const result=await adapter({version:3,task:'analyze',lane:body.lane,instructions:instructionsFor(body.lane,session.settings.profile),segments:body.segments,previous:body.previous||null,incremental:body.incremental===true,newUtteranceIds:body.newUtteranceIds||[],provisionalIds:body.provisionalIds||[]},{signal:controller.signal,settings:structuredClone(session.settings),keys:{...session.keys}});
     return send(200,{data:validateLane(result,body.lane,body.segments),elapsedMs:Math.round(performance.now()-started)});
    }catch{
     return send(502,{error:'This update failed. The previous display is retained; newer speech may not be reflected. Retry when the provider is available.'});
@@ -131,6 +134,8 @@ export function createServer(adapter=callAdapter,{env=process.env,fetcher=fetch}
    });res.end(data);
   }catch{send(404,{error:'Not found'});}
  });
+ attachLiveAudio(server,access,liveAudio);
+ return server;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const port=Number(process.env.PORT||8840);

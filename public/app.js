@@ -1,6 +1,6 @@
 import {segments as demoSegments,snapshot} from './demo.js';
 import {LatestLane,emptyAssessment,emptyPlan,emptyAnswer} from './session.js';
-import {VoiceInput} from './voice.js';
+import {LiveVoiceInput} from './live-voice.js';
 import {Connections} from './connections.js';
 import {placeLane,describeChange,clinicalMarkup} from './presentation.js';
 const $=id=>document.getElementById(id);
@@ -10,7 +10,9 @@ const stateSymbols={consider:'','to clarify':'','to examine':'',reported:'●',r
 let step=1,demo=true,assessment=snapshot(step).assessment,plan=snapshot(step).plan,answer={answer:snapshot(step).plan.answer},speech=demoSegments.slice(0,step+1),status={},elapsed=0,timerStart=null,epoch=0;
 let settings={font:13,leading:1.24,spacing:3,columns:14,ddx:false,inline:true,rules:true,timer:false,colour:'clinical'};
 try{const saved=JSON.parse(localStorage.getItem('clinical-live-display-v3')||'null');if(saved)settings={...settings,...saved};}catch{}
-const timings={},failures=new Set();
+let provisionalId=null;const provisionalIds=new Set();
+const timings={},failures=new Set(),speechMetrics=new Map();
+const seconds=ms=>(Math.max(0,ms)/1000).toFixed(1)+'s';
 function message(text,error=false){$('notice').hidden=!text;$('notice').textContent=text;$('notice').classList.toggle('error',error);}
 function sourceTitle(item){return item.sourceIds?.length?item.sourceIds.map(id=>'Transcript '+(speech.findIndex(s=>s.id===id)+1)).join(' · '):'Generated clinical suggestion';}
 function html(node,value){if(node.innerHTML!==value)node.innerHTML=value;}
@@ -64,45 +66,58 @@ function renderAnswer(){
 }
 function renderSpeech(){
  $('speech-count').textContent=speech.length;
- keyed($('transcript'),speech,s=>s.id,(node,s)=>{node.className='speech-line';html(node,'<b>'+String(speech.indexOf(s)+1).padStart(2,'0')+'</b><span>'+esc(s.text)+'</span>');},'p');
- $('last-heard').textContent=speech.at(-1)?.text||'';
+ keyed($('transcript'),speech,s=>s.id,(node,s)=>{node.className='speech-line'+(provisionalIds.has(s.id)?' provisional':'');html(node,'<b>'+String(speech.indexOf(s)+1).padStart(2,'0')+'</b><span>'+esc(s.text)+'</span>');},'p');
+ $('last-heard').textContent=speech.at(-1)?.text||'';document.querySelector('.heard-label').textContent=provisionalIds.has(speech.at(-1)?.id)?'HEARING · DRAFT':'HEARD';
  $('mode').textContent=demo?'SAMPLE '+(step+1)+'/4':'LIVE';$('mode').classList.toggle('live',!demo);
- $('output-label').textContent=demo?'Authored sample':'Generated · clinically unverified';
+ $('output-label').textContent=demo?'Authored sample':provisionalIds.size?'Live draft · recognition may change':'Generated · clinically unverified';
  $('next').hidden=!demo;$('next').disabled=step===3;$('sample').textContent=demo?'Restart sample':'Sample case';
  $('empty-start').hidden=speech.length>0;$('board').hidden=!speech.length;$('heard-line').hidden=!speech.length;
 }
-const lanes=Object.fromEntries(['assessment','plan','answer'].map(lane=>[lane,new LatestLane({
- request:async(segments,previous,signal)=>{
-  const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({lane,segments,previous})});
+const lanes=Object.fromEntries(['assessment','plan','answer'].map(lane=>[lane,new LatestLane({preemptFinal:lane==='answer',
+ request:async(segments,previous,signal,revision)=>{
+  const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({lane,segments,previous,incremental:true,newUtteranceIds:revision.newUtteranceIds,provisionalIds:revision.provisionalIds})});
   const result=await response.json();if(!response.ok)throw new Error(result.error);return result;
  },
- onResult:(result,count)=>{
+ onResult:(result,count,trace)=>{
   const previous=lane==='assessment'?assessment:lane==='plan'?plan:answer;
   const data=placeLane(previous,result.data,lane);lanes[lane].previous=data;
   if(lane==='assessment'){assessment=data;renderAssessment();}else if(lane==='plan'){plan=data;renderPlan();}else{answer=data;renderAnswer();}
-  timings[lane]=(lane==='assessment'?'Assessment':lane==='plan'?'Management':'Answer')+' '+(result.elapsedMs/1000).toFixed(1)+'s';
-  $('latency').textContent=Object.values(timings).join(' · ');
+  const draft=Boolean(trace.provisionalIds?.length);document.querySelector('[data-lane="'+lane+'"]').dataset.draft=String(draft);
+  const name=lane==='assessment'?'Assessment':lane==='plan'?'Management':'Answer',audio=trace.audio;
+  const total=trace.renderedAt-(audio?.speechEndedAt??trace.receivedAt??trace.queuedAt);
+  timings[lane]=name+' '+seconds(total);$('latency').textContent=(audio?.streaming?'After recognized text · ':audio?'After speech · ':'After text · ')+Object.values(timings).join(' · ');
+  const phases=audio?.streaming?['Streaming recognition · '+(draft?'provisional':'final')]:audio?['Speech → clip '+seconds(audio.queuedAt-audio.speechEndedAt),'Clip wait '+seconds(audio.requestedAt-audio.queuedAt),'Transcribe '+seconds(audio.transcribedAt-audio.requestedAt),'Spoken-order wait '+seconds(audio.committedAt-audio.transcribedAt)]:['Text input'];
+  $('trace-'+lane).textContent=name+' · phrase '+count+' · '+[...phases,'Model queue '+seconds(trace.queuedMs),'Model + network '+seconds(trace.roundTripMs),'Total '+seconds(total)].join(' → ');
   const node=document.querySelector('[data-lane="'+lane+'"]');node.dataset.reflected=count;node.classList.remove('failed');
   failures.delete(lane);if(!voice.failed&&!failures.size){message('');$('retry').hidden=true;}
  },
- onState:busy=>{const node=document.querySelector('[data-lane="'+lane+'"]');node.classList.toggle('busy',busy);if(!node.classList.contains('failed'))node.textContent=busy?'updating…':'';},
+ onState:(busy,progress)=>{const node=document.querySelector('[data-lane="'+lane+'"]');node.classList.toggle('busy',busy);if(!node.classList.contains('failed'))node.textContent=busy?(node.dataset.draft==='true'?'Live draft · updating':progress.covered?'Updating…':'Building…'):progress.covered?(node.dataset.draft==='true'?'Live draft':'Current'):'';node.title='Through '+progress.covered+'/'+progress.target+' transcript entries. '+(busy?'Newer speech is not fully reflected yet.':node.dataset.draft==='true'?'Based on changing speech recognition.':'Includes finalized speech through this update.');},
  onError:error=>{failures.add(lane);const node=document.querySelector('[data-lane="'+lane+'"]');node.classList.add('failed');node.textContent='update failed';message(error.message,true);$('retry').hidden=false;}
 })]));
-function analyze(){
+function analyze(finalizedId){
  if(!status.analysisReady){message('Connect your models in Voice & models. The sample works without keys.',true);return;}
- for(const lane of Object.values(lanes))lane.push(speech);
+ const latest=speechMetrics.get(speech.at(-1)?.id);for(const lane of Object.values(lanes))lane.push(speech,{receivedAt:latest?.committedAt??performance.now(),provisionalIds:[...provisionalIds],audio:latest?{...latest}:null,finalizedId});
 }
-function addSpeech(text,ms){
+function addSpeech(text,ms,trace){
  if(demo)clearEncounter();
  if(speech.length>=500||speech.reduce((n,s)=>n+s.text.length,0)+text.length>250000){void pauseListening();message('Encounter transcript limit reached. Start a new encounter to continue.',true);return;}
- speech.push({id:'s'+(speech.length+1),text});renderSpeech();
- if(ms)timings.speech='Speech '+(ms/1000).toFixed(1)+'s';analyze();
+ let finalizedId;
+ if(trace?.streaming&&provisionalId){finalizedId=provisionalId;const item=speech.find(s=>s.id===provisionalId);item.text=text;provisionalIds.delete(provisionalId);provisionalId=null;if(trace)speechMetrics.set(item.id,trace);}
+ else{speech.push({id:'s'+(speech.length+1),text});if(trace)speechMetrics.set(speech.at(-1).id,trace);}
+ renderSpeech();analyze(finalizedId);
 }
 let connections;
-const voice=new VoiceInput({
+const voice=new LiveVoiceInput({
+ transport:()=>status.settings?.speechTransport||'clips',
+ onPartial:(text,trace)=>{
+  if(speech.length>=500||text.length>30000){void pauseListening();return;}
+  if(!provisionalId){provisionalId='s'+(speech.length+1);provisionalIds.add(provisionalId);speech.push({id:provisionalId,text});}
+  else{const item=speech.find(s=>s.id===provisionalId);if(item.text===text)return;item.text=text;}
+  speechMetrics.set(provisionalId,trace);renderSpeech();analyze();
+ },
  onTranscript:addSpeech,
  getStream:()=>navigator.mediaDevices.getUserMedia(connections.constraints()),
- pauseMs:()=>connections.voice.pause,
+ pauseMs:()=>connections.voice.pause,maxClipMs:()=>connections.voice.maxClip,concurrency:()=>connections.voice.parallel,
  onStatus:text=>{
   $('mic-state').lastChild.textContent=text;$('mic-state').classList.toggle('on',voice.active||text==='Hearing speech');
   $('listen').lastChild.textContent=voice.active?(voice.testOnly?'Stop mic test':'Pause'):voice.starting?'Starting…':'Start listening';
@@ -119,7 +134,7 @@ async function toggleListening(){
  if(voice.active){await pauseListening();return;}
  if(!status.audioReady||!status.analysisReady){$('setup-panel').showModal();message('Connect speech and clinical models to start listening.',true);return;}
  if(demo)clearEncounter();message('');
- const before=epoch;await voice.start();
+ provisionalId=null;const before=epoch;await voice.start();
  if(before===epoch&&voice.active){timerStart=Date.now();$('listen').lastChild.textContent='Pause';void connections.devices();}
 }
 connections=new Connections({
@@ -133,10 +148,10 @@ connections=new Connections({
  }
 });
 function clearEncounter(){
- epoch++;voice.reset();for(const lane of Object.values(lanes))lane.reset();
- demo=false;speech=[];assessment=emptyAssessment();plan=emptyPlan();answer=emptyAnswer();elapsed=0;timerStart=null;failures.clear();
+ epoch++;voice.reset();provisionalId=null;provisionalIds.clear();for(const lane of Object.values(lanes))lane.reset();
+ demo=false;speech=[];assessment=emptyAssessment();plan=emptyPlan();answer=emptyAnswer();elapsed=0;timerStart=null;failures.clear();speechMetrics.clear();for(const lane of ['assessment','plan','answer'])$('trace-'+lane).textContent='';
  for(const key of Object.keys(timings))delete timings[key];$('latency').textContent='';$('retry').hidden=true;
- document.querySelectorAll('.lane-state').forEach(el=>{el.classList.remove('failed');el.textContent='';delete el.dataset.reflected;});
+ document.querySelectorAll('.lane-state').forEach(el=>{el.classList.remove('failed');el.textContent='';delete el.dataset.reflected;delete el.dataset.draft;});
  message('');renderAssessment();renderPlan();renderAnswer();renderSpeech();
 }
 function loadSample(nextStep=0){

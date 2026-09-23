@@ -18,7 +18,7 @@ test('restart reconnects saved keys before restoring per-role model choices',asy
  prefs.key('gemini','test-only',true);const settings=defaults({});settings.answer.model='custom-answer';prefs.settings(settings);
  assert.deepEqual(await new DevicePreferences(storage).restore(async(path,body)=>calls.push({path,body})),[]);
  assert.equal(calls[0].path,'/api/connection');assert.equal(calls[1].path,'/api/settings');assert.equal(calls[1].body.answer.model,'custom-answer');
- assert.equal(defaults({}).answer.model,'gemini-3.8-flash');assert.equal(defaults({}).transcription.model,'gemini-2.5-flash');
+ assert.equal(defaults({}).answer.model,'gemini-3.8-flash');assert.equal(defaults({}).transcription.model,'gemini-3.5-transcribe-live');
 });
 test('restore isolates provider failures and never echoes credential-bearing errors',async()=>{
  const prefs=new DevicePreferences(memory());prefs.key('gemini','test-only',true);prefs.key('openai','second-test',true);prefs.settings(defaults({}));const calls=[];

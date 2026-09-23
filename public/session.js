@@ -1,19 +1,24 @@
 // Every queued revision contains all speech so coalescing never discards an utterance.
 // Reset changes the generation before aborting: even a late successful response is ignored.
 export class LatestLane {
- constructor({request,onResult,onState=()=>{},onError=()=>{}}){Object.assign(this,{request,onResult,onState,onError});this.generation=0;this.active=false;this.queued=null;this.previous=null;}
- push(segments){this.queued=structuredClone(segments);if(!this.active)void this.run();}
- reset(keepPrevious=false){const previous=this.previous;this.generation++;this.controller?.abort();this.active=false;this.queued=null;this.previous=keepPrevious?previous:null;this.onState(false);}
+ constructor({request,onResult,onState=()=>{},onError=()=>{},now=()=>performance.now(),preemptFinal=false}){Object.assign(this,{request,onResult,onState,onError,now,preemptFinal});this.generation=0;this.active=false;this.queued=null;this.previous=null;this.covered=0;this.target=0;this.reflected=new Map();}
+ notify(){this.onState(this.active||Boolean(this.queued),{covered:this.covered,target:this.target,queued:Boolean(this.queued)});}
+ push(segments,metrics={}){
+  // A finalized recognition supersedes an in-flight draft immediately; other sections remain independent.
+  if(this.active&&this.runningProvisional?.length&&(this.preemptFinal||this.previous&&Object.values(this.previous).some(value=>Array.isArray(value)?value.length>0:typeof value==='string'?value.length>0:value!=null))&&(metrics.finalizedId||metrics.provisionalIds?.length===0)){this.generation++;this.controller?.abort();this.active=false;}
+  this.target=segments.length;this.queued={segments:structuredClone(segments),metrics:{...metrics,queuedAt:this.now()}};this.notify();if(!this.active)void this.run();}
+ reset(keepPrevious=false){const previous=this.previous;this.generation++;this.controller?.abort();this.active=false;this.queued=null;this.previous=keepPrevious?previous:null;if(!keepPrevious){this.covered=this.target=0;this.reflected.clear();}this.notify();}
  async run(){
   if(!this.queued)return;
-  const generation=this.generation,segments=this.queued;this.queued=null;this.active=true;this.controller=new AbortController();this.onState(true);
+  const generation=this.generation,{segments,metrics}=this.queued;this.queued=null;this.active=true;this.controller=new AbortController();const startedAt=this.now();this.runningProvisional=metrics.provisionalIds||[];this.notify();
   try{
-   const result=await this.request(segments,this.previous,this.controller.signal);
+   const result=await this.request(segments,this.previous,this.controller.signal,{provisionalIds:metrics.provisionalIds||[],newUtteranceIds:segments.filter(s=>this.reflected.get(s.id)!==JSON.stringify([s.text,(metrics.provisionalIds||[]).includes(s.id)])||metrics.finalizedId===s.id).map(s=>s.id)});
    if(generation!==this.generation)return;
-   this.previous=result.data;this.onResult(result,segments.length);
+   this.previous=result.data;this.covered=segments.length;this.reflected=new Map(segments.map(s=>[s.id,JSON.stringify([s.text,(metrics.provisionalIds||[]).includes(s.id)])]));
+   this.onResult(result,segments.length,{...metrics,startedAt,renderedAt:this.now(),queuedMs:startedAt-metrics.queuedAt,roundTripMs:this.now()-startedAt,target:this.target});
   }catch(error){if(generation===this.generation&&error.name!=='AbortError')this.onError(error);}
   finally{
-   if(generation===this.generation){this.active=false;if(this.queued)void this.run();else this.onState(false);}
+   if(generation===this.generation){this.active=false;if(this.queued)void this.run();else this.notify();}
   }
  }
 }
